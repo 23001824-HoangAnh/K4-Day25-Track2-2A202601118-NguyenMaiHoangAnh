@@ -52,6 +52,46 @@ def discount_stack(
     return cache_mult * batch_mult
 
 
+def cache_break_even_reads(
+    write_cost_per_m: float,
+    read_discount: float = 0.10,
+    uncached_read_cost_per_m: float = 1.0,
+) -> float:
+    """Number of cache reads needed to recover the one-time cache-write cost.
+
+    ``write_cost_per_m`` and ``uncached_read_cost_per_m`` must use the same
+    token unit. A normal read costs ``uncached_read_cost_per_m``; a cached read
+    costs only ``read_discount`` of that price. ``inf`` means cached reads have
+    no economic advantage.
+    """
+    write_cost = max(0.0, write_cost_per_m)
+    read_price = max(0.0, uncached_read_cost_per_m)
+    discount = max(0.0, min(1.0, read_discount))
+    savings_per_read = read_price * (1.0 - discount)
+    if savings_per_read <= 0:
+        return float("inf")
+    return write_cost / savings_per_read
+
+
+def cache_is_worth_it(
+    avg_cache_reads: float,
+    write_cost_per_m: float,
+    read_discount: float = 0.10,
+    uncached_read_cost_per_m: float = 1.0,
+) -> bool:
+    """Return whether repeated reads save more than the cache-write charge.
+
+    Equality is the break-even point, not a saving, so the comparison is
+    deliberately strict.
+    """
+    threshold = cache_break_even_reads(
+        write_cost_per_m,
+        read_discount=read_discount,
+        uncached_read_cost_per_m=uncached_read_cost_per_m,
+    )
+    return max(0.0, avg_cache_reads) > threshold
+
+
 def break_even_utilization(discount_frac: float) -> float:
     """Utilization at which a commitment pays off ~= 1 - discount.
 
